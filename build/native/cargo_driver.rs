@@ -168,6 +168,8 @@ pub fn build() -> Result<EspIdfBuildOutput> {
             Ok((idf, install_dir.clone()))
         };
 
+        cargo::print_warning(format_args!("DEBUG 1"));
+
         // 1. Try to use the activated esp-idf environment if `esp_idf_tools_install_dir`
         //    is `fromenv` or unset.
         // 2. Use a custom esp-idf repository specified by `$IDF_PATH`/`idf_path` if
@@ -188,6 +190,7 @@ pub fn build() -> Result<EspIdfBuildOutput> {
                     cargo::print_warning(format_args!(
                         "Ignoring activated esp-idf environment: {ESP_IDF_TOOLS_INSTALL_DIR_VAR} != {}", InstallDir::FromEnv
                     ));
+                    eprintln!("FJDKLFJLSDKJFLDSKJFLKDS");
                     install(EspIdfOrigin::Custom(idf.repository))?
             },
             (Err(FromEnvError::NotActivated { source: err, .. }), true) |
@@ -197,9 +200,11 @@ pub fn build() -> Result<EspIdfBuildOutput> {
                 ))
             }
             (Err(FromEnvError::NotActivated { esp_idf_repo, .. }), _) => {
+                eprintln!("Not activated");
                 install(EspIdfOrigin::Custom(esp_idf_repo))?
             },
             (Err(FromEnvError::NoRepo(_)), _) => {
+                eprintln!("No repo");
                 let origin = match &config.native.idf_path {
                     Some(idf_path) => EspIdfOrigin::Custom(git::Repository::new(idf_path)),
                     None => EspIdfOrigin::Managed(EspIdfRemote {
@@ -211,6 +216,8 @@ pub fn build() -> Result<EspIdfBuildOutput> {
             },
         }
     };
+
+    cargo::print_warning(format_args!("DEBUG 2"));
 
     let gcc12 = match idf.version.as_ref().map(|v| (v.major, v.minor, v.patch)) {
         Ok((major, minor, _)) => major > 5 || major == 5 && minor >= 1,
