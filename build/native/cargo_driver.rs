@@ -168,56 +168,75 @@ pub fn build() -> Result<EspIdfBuildOutput> {
             Ok((idf, install_dir.clone()))
         };
 
-        cargo::print_warning(format_args!("DEBUG 1"));
-
         // 1. Try to use the activated esp-idf environment if `esp_idf_tools_install_dir`
         //    is `fromenv` or unset.
         // 2. Use a custom esp-idf repository specified by `$IDF_PATH`/`idf_path` if
         //    available and install the tools using `embuild::espidf::Installer` in
         //    `install_dir`.
         // 3. Install the esp-idf and its tools in `install_dir`.
-        match (espidf::EspIdf::try_from_env(), maybe_from_env) {
-            (Ok(idf), true) => {
-                eprintln!(
-                    "Using activated esp-idf {} environment at '{}'",
-                    espidf::EspIdfVersion::format(&idf.version),
-                    idf.repository.worktree().display()
-                );
+        // match (espidf::EspIdf::try_from_env(), maybe_from_env) {
+        //     (Ok(idf), true) => {
+        //         eprintln!(
+        //             "Using activated esp-idf {} environment at '{}'",
+        //             espidf::EspIdfVersion::format(&idf.version),
+        //             idf.repository.worktree().display()
+        //         );
 
-                (idf, InstallDir::FromEnv)
+        //         (idf, InstallDir::FromEnv)
+        //     },
+        //     (Ok(idf), false) => {
+        //             cargo::print_warning(format_args!(
+        //                 "Ignoring activated esp-idf environment: {ESP_IDF_TOOLS_INSTALL_DIR_VAR} != {}", InstallDir::FromEnv
+        //             ));
+        //             install(EspIdfOrigin::Custom(idf.repository))?
+        //     },
+        //     (Err(FromEnvError::NotActivated { source: err, .. }), true) |
+        //     (Err(FromEnvError::NoRepo(err)), true) if require_from_env => {
+        //         return Err(err.context(
+        //             format!("activated esp-idf environment not found but required by {ESP_IDF_TOOLS_INSTALL_DIR_VAR} == {install_dir}")
+        //         ))
+        //     }
+        //     (Err(FromEnvError::NotActivated { esp_idf_repo, .. }), _) => {
+        //         eprintln!("Not activated");
+        //         install(EspIdfOrigin::Custom(esp_idf_repo))?
+        //     },
+        //     (Err(FromEnvError::NoRepo(_)), _) => {
+        //         let origin = match &config.native.idf_path {
+        //             Some(idf_path) => EspIdfOrigin::Custom(git::Repository::new(idf_path)),
+        //             None => EspIdfOrigin::Managed(EspIdfRemote {
+        //                 git_ref: config.native.esp_idf_version(),
+        //                 repo_url: config.native.esp_idf_repository.clone()
+        //             })
+        //         };
+        //         install(origin)?
+        //     },
+        // }
+
+        let idf_path = env::var("IDF_PATH").context("IDF_PATH is not set")?;
+        let idf_version = env::var("ESP_IDF_VERSION").context("ESP_IDF_VERSION is not set")?;
+
+        let mut py_path =
+            PathBuf::try_from(idf_path.clone()).context("IDF_PATH is not a valid path")?;
+        py_path.push("python-env");
+        py_path.push("bin");
+        py_path.push("python");
+
+        let repo = git::Repository::new(idf_path.clone());
+
+        let mut tools_path = PathBuf::try_from(idf_path).context("IDF_PATH is not a valid path")?;
+        tools_path.push("tools");
+
+        (
+            espidf::EspIdf {
+                repository: repo.clone(),
+                exported_path: env::var_os("PATH").context("PATH is not set")?,
+                venv_python: py_path,
+                version: espidf::EspIdfVersion::try_from(&repo),
+                is_managed_espidf: false,
             },
-            (Ok(idf), false) => {
-                    cargo::print_warning(format_args!(
-                        "Ignoring activated esp-idf environment: {ESP_IDF_TOOLS_INSTALL_DIR_VAR} != {}", InstallDir::FromEnv
-                    ));
-                    eprintln!("FJDKLFJLSDKJFLDSKJFLKDS");
-                    install(EspIdfOrigin::Custom(idf.repository))?
-            },
-            (Err(FromEnvError::NotActivated { source: err, .. }), true) |
-            (Err(FromEnvError::NoRepo(err)), true) if require_from_env => {
-                return Err(err.context(
-                    format!("activated esp-idf environment not found but required by {ESP_IDF_TOOLS_INSTALL_DIR_VAR} == {install_dir}")
-                ))
-            }
-            (Err(FromEnvError::NotActivated { esp_idf_repo, .. }), _) => {
-                eprintln!("Not activated");
-                install(EspIdfOrigin::Custom(esp_idf_repo))?
-            },
-            (Err(FromEnvError::NoRepo(_)), _) => {
-                eprintln!("No repo");
-                let origin = match &config.native.idf_path {
-                    Some(idf_path) => EspIdfOrigin::Custom(git::Repository::new(idf_path)),
-                    None => EspIdfOrigin::Managed(EspIdfRemote {
-                        git_ref: config.native.esp_idf_version(),
-                        repo_url: config.native.esp_idf_repository.clone()
-                    })
-                };
-                install(origin)?
-            },
-        }
+            InstallDir::Custom(tools_path),
+        )
     };
-
-    cargo::print_warning(format_args!("DEBUG 2"));
 
     let gcc12 = match idf.version.as_ref().map(|v| (v.major, v.minor, v.patch)) {
         Ok((major, minor, _)) => major > 5 || major == 5 && minor >= 1,
