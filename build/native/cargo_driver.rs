@@ -201,7 +201,7 @@ pub fn build() -> Result<EspIdfBuildOutput> {
             },
             (Err(FromEnvError::NoRepo(_)), _) => {
                 let origin = match &config.native.idf_path {
-                    Some(idf_path) => EspIdfOrigin::Custom(git::Repository::open(idf_path)?),
+                    Some(idf_path) => EspIdfOrigin::Custom(git::Repository::new(idf_path)),
                     None => EspIdfOrigin::Managed(EspIdfRemote {
                         git_ref: config.native.esp_idf_version(),
                         repo_url: config.native.esp_idf_repository.clone()
